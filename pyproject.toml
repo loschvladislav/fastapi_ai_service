@@ -1,0 +1,44 @@
+[project]
+name = "fastapi-ai-service"
+version = "0.1.0"
+description = "FastAPI microservice with OpenAI GPT integration, rate limiting, and structured logging"
+requires-python = ">=3.11"
+dependencies = [
+    # Web framework
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+
+    # OpenAI
+    "openai>=1.12.0",
+
+    # Settings & validation
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+
+    # Rate limiting
+    "slowapi>=0.1.9",
+
+    # HTTP client
+    "httpx>=0.26.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.1.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
