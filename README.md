@@ -5,6 +5,7 @@ FastAPI microservice with OpenAI GPT integration, rate limiting, and structured 
 ## Features
 
 - **OpenAI GPT Integration** - Chat, summarization, and translation with GPT-3.5/GPT-4
+- **Streaming Responses** - Real-time token streaming with Server-Sent Events (SSE)
 - **Rate Limiting** - Prevent abuse with configurable limits
 - **Structured Logging** - JSON logs in production, readable in dev
 - **Pydantic Validation** - Request/response validation
@@ -50,6 +51,7 @@ App available at http://localhost:8001
 |--------|----------|-------------|
 | GET | `/health` | Health check |
 | POST | `/api/v1/chat` | Chat completion |
+| POST | `/api/v1/chat/stream` | Streaming chat (SSE) |
 | POST | `/api/v1/summarize` | Text summarization |
 | POST | `/api/v1/translate` | Text translation |
 
@@ -71,6 +73,28 @@ curl -X POST http://localhost:8001/api/v1/chat \
     "model": "gpt-3.5-turbo",
     "max_tokens": 500
   }'
+```
+
+### Chat Streaming (SSE)
+```bash
+curl -X POST http://localhost:8001/api/v1/chat/stream \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "Write a short poem about coding"}
+    ],
+    "model": "gpt-3.5-turbo"
+  }'
+```
+
+Response streams token by token:
+```
+data: {"token": "Code"}
+data: {"token": " flows"}
+data: {"token": " like"}
+data: {"token": " water"}
+...
+data: {"done": true, "full_text": "Code flows like water..."}
 ```
 
 ### Summarize

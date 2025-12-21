@@ -1,4 +1,6 @@
+import json
 import logging
+from typing import AsyncGenerator
 
 from openai import AsyncOpenAI, OpenAIError
 
@@ -56,6 +58,52 @@ async def chat_completion(request: ChatRequest) -> ChatResponse:
 
     except OpenAIError as e:
         logger.error(f"OpenAI API error: {e}", extra={"error_type": type(e).__name__})
+        raise
+
+
+async def chat_completion_stream(request: ChatRequest) -> AsyncGenerator[str, None]:
+    """Stream chat completion from OpenAI using Server-Sent Events format."""
+    logger.info(
+        "OpenAI streaming request",
+        extra={
+            "model": request.model,
+            "message_count": len(request.messages),
+            "max_tokens": request.max_tokens,
+        },
+    )
+
+    full_content = ""
+
+    try:
+        stream = await client.chat.completions.create(
+            model=request.model,
+            messages=[{"role": m.role, "content": m.content} for m in request.messages],
+            max_tokens=request.max_tokens,
+            temperature=request.temperature,
+            stream=True,
+        )
+
+        async for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta.content:
+                token = chunk.choices[0].delta.content
+                full_content += token
+                # Send token in SSE format
+                yield f"data: {json.dumps({'token': token})}\n\n"
+
+        # Send final message with complete text
+        yield f"data: {json.dumps({'done': True, 'full_text': full_content})}\n\n"
+
+        logger.info(
+            "OpenAI streaming response complete",
+            extra={
+                "model": request.model,
+                "content_length": len(full_content),
+            },
+        )
+
+    except OpenAIError as e:
+        logger.error(f"OpenAI API error: {e}", extra={"error_type": type(e).__name__})
+        yield f"data: {json.dumps({'error': str(e)})}\n\n"
         raise
 
 

@@ -77,3 +77,49 @@ class TestChatEndpoint:
                 },
             )
             assert response.status_code == 422
+
+
+class TestChatStreamEndpoint:
+    async def test_chat_stream_success(self, client: AsyncClient):
+        """Test successful streaming chat completion."""
+
+        async def mock_stream(*args, **kwargs):
+            yield 'data: {"token": "Hello"}\n\n'
+            yield 'data: {"token": " World"}\n\n'
+            yield 'data: {"done": true, "full_text": "Hello World"}\n\n'
+
+        with patch("app.api.v1.chat.chat_completion_stream", return_value=mock_stream()):
+            response = await client.post(
+                "/api/v1/chat/stream",
+                json={
+                    "messages": [{"role": "user", "content": "Say hello"}],
+                    "model": "gpt-3.5-turbo",
+                },
+            )
+
+            assert response.status_code == 200
+            assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+
+            # Check response contains streamed data
+            content = response.text
+            assert "Hello" in content
+            assert "World" in content
+            assert "done" in content
+
+    async def test_chat_stream_validation_error(self, client: AsyncClient):
+        """Test validation error for empty messages in stream."""
+        response = await client.post(
+            "/api/v1/chat/stream",
+            json={"messages": []},
+        )
+        assert response.status_code == 422
+
+    async def test_chat_stream_invalid_role(self, client: AsyncClient):
+        """Test validation error for invalid role in stream."""
+        response = await client.post(
+            "/api/v1/chat/stream",
+            json={
+                "messages": [{"role": "invalid", "content": "Hello"}],
+            },
+        )
+        assert response.status_code == 422
