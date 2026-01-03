@@ -221,6 +221,10 @@ alembic downgrade -1
 ## Running Tests
 
 ```bash
+# First time only: create test database
+docker compose exec db psql -U ai_service -d ai_service_db -c "CREATE DATABASE ai_service_test_db;"
+
+# Run tests
 pytest -v
 ```
 
