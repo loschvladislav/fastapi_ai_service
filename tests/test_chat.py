@@ -1,19 +1,9 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 
-from app.main import app
 from app.schemas.chat import ChatMessage, ChatResponse
-
-
-@pytest.fixture
-async def client():
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as ac:
-        yield ac
 
 
 class TestHealthCheck:
@@ -24,7 +14,30 @@ class TestHealthCheck:
 
 
 class TestChatEndpoint:
-    async def test_chat_success(self, client: AsyncClient):
+    async def test_chat_requires_api_key(self, client: AsyncClient):
+        """Test that chat endpoint requires API key."""
+        response = await client.post(
+            "/api/v1/chat",
+            json={
+                "messages": [{"role": "user", "content": "Hello"}],
+            },
+        )
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Missing API key"
+
+    async def test_chat_invalid_api_key(self, client: AsyncClient):
+        """Test that invalid API key is rejected."""
+        response = await client.post(
+            "/api/v1/chat",
+            json={
+                "messages": [{"role": "user", "content": "Hello"}],
+            },
+            headers={"X-API-Key": "invalid_key"},
+        )
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid API key"
+
+    async def test_chat_success(self, client: AsyncClient, api_key_headers: dict):
         """Test successful chat completion with mocked OpenAI."""
         mock_response = ChatResponse(
             message=ChatMessage(role="assistant", content="Python is a programming language."),
@@ -41,6 +54,7 @@ class TestChatEndpoint:
                     "messages": [{"role": "user", "content": "What is Python?"}],
                     "model": "gpt-3.5-turbo",
                 },
+                headers=api_key_headers,
             )
 
             assert response.status_code == 200
@@ -48,25 +62,27 @@ class TestChatEndpoint:
             assert data["message"]["role"] == "assistant"
             assert "Python" in data["message"]["content"]
 
-    async def test_chat_validation_error(self, client: AsyncClient):
+    async def test_chat_validation_error(self, client: AsyncClient, api_key_headers: dict):
         """Test validation error for empty messages."""
         response = await client.post(
             "/api/v1/chat",
             json={"messages": []},
+            headers=api_key_headers,
         )
         assert response.status_code == 422
 
-    async def test_chat_invalid_role(self, client: AsyncClient):
+    async def test_chat_invalid_role(self, client: AsyncClient, api_key_headers: dict):
         """Test validation error for invalid role."""
         response = await client.post(
             "/api/v1/chat",
             json={
                 "messages": [{"role": "invalid", "content": "Hello"}],
             },
+            headers=api_key_headers,
         )
         assert response.status_code == 422
 
-    async def test_chat_temperature_validation(self, client: AsyncClient):
+    async def test_chat_temperature_validation(self, client: AsyncClient, api_key_headers: dict):
         """Test temperature must be between 0 and 2."""
         with patch("app.api.v1.chat.chat_completion", new_callable=AsyncMock):
             response = await client.post(
@@ -75,12 +91,23 @@ class TestChatEndpoint:
                     "messages": [{"role": "user", "content": "Hello"}],
                     "temperature": 3.0,  # Invalid
                 },
+                headers=api_key_headers,
             )
             assert response.status_code == 422
 
 
 class TestChatStreamEndpoint:
-    async def test_chat_stream_success(self, client: AsyncClient):
+    async def test_chat_stream_requires_api_key(self, client: AsyncClient):
+        """Test that stream endpoint requires API key."""
+        response = await client.post(
+            "/api/v1/chat/stream",
+            json={
+                "messages": [{"role": "user", "content": "Hello"}],
+            },
+        )
+        assert response.status_code == 401
+
+    async def test_chat_stream_success(self, client: AsyncClient, api_key_headers: dict):
         """Test successful streaming chat completion."""
 
         async def mock_stream(*args, **kwargs):
@@ -95,6 +122,7 @@ class TestChatStreamEndpoint:
                     "messages": [{"role": "user", "content": "Say hello"}],
                     "model": "gpt-3.5-turbo",
                 },
+                headers=api_key_headers,
             )
 
             assert response.status_code == 200
@@ -106,20 +134,22 @@ class TestChatStreamEndpoint:
             assert "World" in content
             assert "done" in content
 
-    async def test_chat_stream_validation_error(self, client: AsyncClient):
+    async def test_chat_stream_validation_error(self, client: AsyncClient, api_key_headers: dict):
         """Test validation error for empty messages in stream."""
         response = await client.post(
             "/api/v1/chat/stream",
             json={"messages": []},
+            headers=api_key_headers,
         )
         assert response.status_code == 422
 
-    async def test_chat_stream_invalid_role(self, client: AsyncClient):
+    async def test_chat_stream_invalid_role(self, client: AsyncClient, api_key_headers: dict):
         """Test validation error for invalid role in stream."""
         response = await client.post(
             "/api/v1/chat/stream",
             json={
                 "messages": [{"role": "invalid", "content": "Hello"}],
             },
+            headers=api_key_headers,
         )
         assert response.status_code == 422
