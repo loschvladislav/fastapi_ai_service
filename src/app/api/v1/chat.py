@@ -1,12 +1,16 @@
 import logging
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from openai import APIConnectionError, AuthenticationError, RateLimitError
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import CurrentAPIKey
 from app.core.rate_limit import get_rate_limit, limiter
+from app.database import get_db
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.openai_service import chat_completion, chat_completion_stream
+from app.services.usage_service import record_usage
 
 logger = logging.getLogger(__name__)
 
@@ -15,19 +19,38 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 @router.post("", response_model=ChatResponse)
 @limiter.limit(get_rate_limit())
-async def create_chat_completion(request: Request, chat_request: ChatRequest):
+async def create_chat_completion(
+    request: Request,
+    chat_request: ChatRequest,
+    api_key: CurrentAPIKey,
+    db: AsyncSession = Depends(get_db),
+):
     """
     Send a chat completion request to OpenAI.
 
-    Rate limited to prevent abuse.
+    Requires API key in X-API-Key header.
     """
     logger.info(
         "Chat request received",
-        extra={"model": chat_request.model, "message_count": len(chat_request.messages)},
+        extra={
+            "model": chat_request.model,
+            "message_count": len(chat_request.messages),
+            "api_key": api_key.key_prefix,
+        },
     )
 
     try:
         response = await chat_completion(chat_request)
+
+        # Record usage
+        await record_usage(
+            db=db,
+            api_key=api_key,
+            endpoint="/api/v1/chat",
+            prompt_tokens=response.usage.get("prompt_tokens", 0),
+            completion_tokens=response.usage.get("completion_tokens", 0),
+        )
+
         return response
 
     except AuthenticationError:
@@ -58,18 +81,35 @@ async def create_chat_completion(request: Request, chat_request: ChatRequest):
 
 @router.post("/stream")
 @limiter.limit(get_rate_limit())
-async def create_chat_completion_stream(request: Request, chat_request: ChatRequest):
+async def create_chat_completion_stream(
+    request: Request,
+    chat_request: ChatRequest,
+    api_key: CurrentAPIKey,
+    db: AsyncSession = Depends(get_db),
+):
     """
     Stream chat completion from OpenAI using Server-Sent Events.
 
     Returns tokens as they are generated, providing real-time response.
-    Final message includes the complete text.
 
-    Rate limited to prevent abuse.
+    Requires API key in X-API-Key header.
     """
     logger.info(
         "Streaming chat request received",
-        extra={"model": chat_request.model, "message_count": len(chat_request.messages)},
+        extra={
+            "model": chat_request.model,
+            "message_count": len(chat_request.messages),
+            "api_key": api_key.key_prefix,
+        },
+    )
+
+    # Record usage (approximate for streaming - exact tokens unknown upfront)
+    await record_usage(
+        db=db,
+        api_key=api_key,
+        endpoint="/api/v1/chat/stream",
+        prompt_tokens=0,
+        completion_tokens=0,
     )
 
     return StreamingResponse(

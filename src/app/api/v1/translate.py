@@ -1,11 +1,15 @@
 import logging
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from openai import APIConnectionError, AuthenticationError, RateLimitError
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import CurrentAPIKey
 from app.core.rate_limit import get_rate_limit, limiter
+from app.database import get_db
 from app.schemas.translate import TranslateRequest, TranslateResponse
 from app.services.openai_service import translate_text
+from app.services.usage_service import record_usage
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +18,16 @@ router = APIRouter(prefix="/translate", tags=["translate"])
 
 @router.post("", response_model=TranslateResponse)
 @limiter.limit(get_rate_limit())
-async def create_translation(request: Request, translate_request: TranslateRequest):
+async def create_translation(
+    request: Request,
+    translate_request: TranslateRequest,
+    api_key: CurrentAPIKey,
+    db: AsyncSession = Depends(get_db),
+):
     """
     Translate text using AI.
+
+    Requires API key in X-API-Key header.
 
     Supports automatic language detection when source_language is set to "auto".
     """
@@ -26,11 +37,22 @@ async def create_translation(request: Request, translate_request: TranslateReque
             "text_length": len(translate_request.text),
             "source": translate_request.source_language,
             "target": translate_request.target_language,
+            "api_key": api_key.key_prefix,
         },
     )
 
     try:
         response = await translate_text(translate_request)
+
+        # Record usage
+        await record_usage(
+            db=db,
+            api_key=api_key,
+            endpoint="/api/v1/translate",
+            prompt_tokens=response.usage.get("prompt_tokens", 0),
+            completion_tokens=response.usage.get("completion_tokens", 0),
+        )
+
         return response
 
     except AuthenticationError:

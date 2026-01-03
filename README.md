@@ -1,15 +1,17 @@
 # FastAPI AI Service
 
-FastAPI microservice with OpenAI GPT integration, rate limiting, and structured logging.
+FastAPI microservice with OpenAI GPT integration, API key management, usage tracking, rate limiting, and structured logging.
 
 ## Features
 
 - **OpenAI GPT Integration** - Chat, summarization, and translation with GPT-3.5/GPT-4
 - **Streaming Responses** - Real-time token streaming with Server-Sent Events (SSE)
-- **Rate Limiting** - Prevent abuse with configurable limits
+- **API Key Management** - Create, manage, and revoke API keys
+- **Usage Tracking** - Track API usage per key with detailed metrics
+- **PostgreSQL Database** - Persistent storage with async SQLAlchemy
+- **Rate Limiting** - Prevent abuse with configurable limits per API key
 - **Structured Logging** - JSON logs in production, readable in dev
 - **Pydantic Validation** - Request/response validation
-- **Error Handling** - Graceful error responses
 - **Docker Support** - Production-ready containerization
 
 ## Quick Start
@@ -27,6 +29,12 @@ pip install -e ".[dev]"
 # Create .env file
 cp .env.example .env
 # Edit .env and add your OPENAI_API_KEY
+
+# Start PostgreSQL
+docker compose up -d db
+
+# Run migrations
+alembic upgrade head
 
 # Run the app
 uvicorn app.main:app --reload --port 8001
@@ -47,6 +55,8 @@ App available at http://localhost:8001
 
 ## API Endpoints
 
+### AI Endpoints
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/health` | Health check |
@@ -55,11 +65,51 @@ App available at http://localhost:8001
 | POST | `/api/v1/summarize` | Text summarization |
 | POST | `/api/v1/translate` | Text translation |
 
+### API Key Management
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/api-keys` | Create new API key |
+| GET | `/api/v1/api-keys` | List all API keys |
+| GET | `/api/v1/api-keys/{id}` | Get API key details |
+| PATCH | `/api/v1/api-keys/{id}` | Update API key |
+| DELETE | `/api/v1/api-keys/{id}` | Delete API key |
+
+### Usage Tracking
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/usage/{key_id}` | Get usage records |
+| GET | `/api/v1/usage/{key_id}/summary` | Get usage summary |
+
 ## API Documentation
 
 - Swagger UI: http://localhost:8001/docs (when DEBUG=true)
 
 ## Usage Examples
+
+### Create API Key
+```bash
+curl -X POST http://localhost:8001/api/v1/api-keys \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My App Key", "rate_limit_per_minute": 20}'
+```
+
+Response:
+```json
+{
+  "id": "...",
+  "name": "My App Key",
+  "key": "ai_xxxxxxxxxxxxx",
+  "key_prefix": "ai_xxxxx",
+  "is_active": true,
+  "rate_limit_per_minute": 20,
+  "created_at": "...",
+  "last_used_at": null
+}
+```
+
+**Important:** Save the `key` value - it's only shown once!
 
 ### Chat
 ```bash
@@ -123,19 +173,58 @@ curl -X POST http://localhost:8001/api/v1/translate \
 
 Use `"source_language": "auto"` for automatic language detection.
 
+### Get Usage Summary
+```bash
+curl http://localhost:8001/api/v1/usage/{key_id}/summary?days=30
+```
+
+Response:
+```json
+{
+  "total_requests": 150,
+  "total_tokens": 45000,
+  "total_prompt_tokens": 15000,
+  "total_completion_tokens": 30000,
+  "period_start": "...",
+  "period_end": "..."
+}
+```
+
+## Database Migrations
+
+```bash
+# Create a new migration
+alembic revision --autogenerate -m "description"
+
+# Apply migrations
+alembic upgrade head
+
+# Rollback one migration
+alembic downgrade -1
+```
+
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENAI_API_KEY` | (required) | Your OpenAI API key |
-| `RATE_LIMIT_PER_MINUTE` | 10 | Max requests per minute per IP |
-| `APP_ENV` | development | Environment (development/production) |
+| `DB_USER` | ai_service | PostgreSQL username |
+| `DB_PASSWORD` | ai_service_pass | PostgreSQL password |
+| `DB_NAME` | ai_service_db | Database name |
+| `DB_HOST` | localhost | Database host |
+| `DB_PORT` | 5436 | Database port |
+| `RATE_LIMIT_PER_MINUTE` | 10 | Default rate limit |
+| `APP_ENV` | development | Environment |
 | `DEBUG` | false | Enable debug mode and docs |
 | `LOG_LEVEL` | INFO | Logging level |
 
 ## Running Tests
 
 ```bash
+# First time only: create test database
+docker compose exec db psql -U ai_service -d ai_service_db -c "CREATE DATABASE ai_service_test_db;"
+
+# Run tests
 pytest -v
 ```
 
@@ -144,23 +233,38 @@ pytest -v
 ```
 ├── src/app/
 │   ├── api/v1/
-│   │   ├── chat.py         # Chat endpoint
-│   │   ├── summarize.py    # Summarize endpoint
-│   │   └── translate.py    # Translate endpoint
+│   │   ├── api_keys.py       # API key management
+│   │   ├── usage.py          # Usage tracking
+│   │   ├── chat.py           # Chat endpoint
+│   │   ├── summarize.py      # Summarize endpoint
+│   │   └── translate.py      # Translate endpoint
 │   ├── core/
-│   │   ├── logging.py      # Logging setup
-│   │   └── rate_limit.py   # Rate limiting
+│   │   ├── auth.py           # API key authentication
+│   │   ├── logging.py        # Logging setup
+│   │   └── rate_limit.py     # Rate limiting
+│   ├── models/
+│   │   ├── api_key.py        # API key model
+│   │   └── usage.py          # Usage record model
 │   ├── schemas/
-│   │   ├── chat.py         # Chat models
-│   │   ├── summarize.py    # Summarize models
-│   │   └── translate.py    # Translate models
+│   │   ├── api_key.py        # API key schemas
+│   │   ├── usage.py          # Usage schemas
+│   │   ├── chat.py           # Chat models
+│   │   ├── summarize.py      # Summarize models
+│   │   └── translate.py      # Translate models
 │   ├── services/
-│   │   └── openai_service.py  # OpenAI client
-│   ├── config.py           # Settings
-│   └── main.py             # App entry point
+│   │   ├── api_key_service.py   # API key service
+│   │   ├── usage_service.py     # Usage service
+│   │   └── openai_service.py    # OpenAI client
+│   ├── config.py             # Settings
+│   ├── database.py           # Database connection
+│   └── main.py               # App entry point
+├── alembic/
+│   ├── versions/             # Migration files
+│   └── env.py                # Alembic config
 ├── tests/
 ├── Dockerfile
 ├── docker-compose.yml
+├── alembic.ini
 └── pyproject.toml
 ```
 

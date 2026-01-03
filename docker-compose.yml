@@ -1,4 +1,22 @@
 services:
+  db:
+    image: postgres:15
+    container_name: ai_service_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-ai_service}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ai_service_pass}
+      POSTGRES_DB: ${DB_NAME:-ai_service_db}
+    ports:
+      - "${DB_PORT:-5436}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ai_service}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   app:
     build: .
     container_name: ai_service_app
@@ -11,3 +29,10 @@ services:
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-ai_service}:${DB_PASSWORD:-ai_service_pass}@db:5432/${DB_NAME:-ai_service_db}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
