@@ -8,10 +8,13 @@ from sqlalchemy.pool import NullPool
 from app.config import settings
 from app.database import Base, get_db
 from app.main import app
+from app.schemas.api_key import APIKeyCreate
+from app.services.api_key_service import create_api_key
 
 # Use NullPool to avoid connection issues in tests
+# Use separate test database to avoid affecting development data
 engine = create_async_engine(
-    settings.database_url,
+    settings.test_database_url,
     echo=False,
     poolclass=NullPool,
 )
@@ -47,3 +50,17 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         yield ac
 
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def test_api_key(db: AsyncSession) -> str:
+    """Create a test API key and return the raw key."""
+    api_key_data = APIKeyCreate(name="Test API Key", rate_limit_per_minute=100)
+    _, raw_key = await create_api_key(db, api_key_data)
+    return raw_key
+
+
+@pytest.fixture
+def api_key_headers(test_api_key: str) -> dict:
+    """Get headers with API key for authenticated requests."""
+    return {"X-API-Key": test_api_key}

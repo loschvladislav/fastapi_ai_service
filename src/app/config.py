@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     db_host: str = "localhost"
     db_port: int = 5436
 
+    # Test Database
+    test_db_name: str = "ai_service_test_db"
+
     # Rate Limiting
     rate_limit_per_minute: int = 10
 
@@ -39,6 +42,11 @@ class Settings(BaseSettings):
     def database_url_sync(self) -> str:
         """Sync database URL for Alembic migrations."""
         return f"postgresql+psycopg2://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+
+    @property
+    def test_database_url(self) -> str:
+        """Async database URL for tests (separate database)."""
+        return f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.test_db_name}"
 
 
 settings = Settings()

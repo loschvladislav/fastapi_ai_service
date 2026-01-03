@@ -7,7 +7,19 @@ from app.schemas.translate import TranslateResponse
 
 
 class TestTranslateEndpoint:
-    async def test_translate_success(self, client: AsyncClient):
+    async def test_translate_requires_api_key(self, client: AsyncClient):
+        """Test that translate endpoint requires API key."""
+        response = await client.post(
+            "/api/v1/translate",
+            json={
+                "text": "Hello, how are you?",
+                "target_language": "Spanish",
+            },
+        )
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Missing API key"
+
+    async def test_translate_success(self, client: AsyncClient, api_key_headers: dict):
         """Test successful translation."""
         mock_response = TranslateResponse(
             translated_text="Hola, como estas?",
@@ -27,6 +39,7 @@ class TestTranslateEndpoint:
                     "source_language": "English",
                     "target_language": "Spanish",
                 },
+                headers=api_key_headers,
             )
 
             assert response.status_code == 200
@@ -34,7 +47,7 @@ class TestTranslateEndpoint:
             assert data["translated_text"] == "Hola, como estas?"
             assert data["target_language"] == "Spanish"
 
-    async def test_translate_auto_detect(self, client: AsyncClient):
+    async def test_translate_auto_detect(self, client: AsyncClient, api_key_headers: dict):
         """Test translation with auto language detection."""
         mock_response = TranslateResponse(
             translated_text="Hello",
@@ -54,13 +67,14 @@ class TestTranslateEndpoint:
                     "source_language": "auto",
                     "target_language": "English",
                 },
+                headers=api_key_headers,
             )
 
             assert response.status_code == 200
             data = response.json()
             assert data["source_language"] == "auto-detected"
 
-    async def test_translate_validation_empty_text(self, client: AsyncClient):
+    async def test_translate_validation_empty_text(self, client: AsyncClient, api_key_headers: dict):
         """Test validation error for empty text."""
         response = await client.post(
             "/api/v1/translate",
@@ -68,20 +82,22 @@ class TestTranslateEndpoint:
                 "text": "",
                 "target_language": "Spanish",
             },
+            headers=api_key_headers,
         )
         assert response.status_code == 422
 
-    async def test_translate_missing_target_language(self, client: AsyncClient):
+    async def test_translate_missing_target_language(self, client: AsyncClient, api_key_headers: dict):
         """Test validation error for missing target language."""
         response = await client.post(
             "/api/v1/translate",
             json={
                 "text": "Hello",
             },
+            headers=api_key_headers,
         )
         assert response.status_code == 422
 
-    async def test_translate_text_too_long(self, client: AsyncClient):
+    async def test_translate_text_too_long(self, client: AsyncClient, api_key_headers: dict):
         """Test validation error for text exceeding max length."""
         response = await client.post(
             "/api/v1/translate",
@@ -89,5 +105,6 @@ class TestTranslateEndpoint:
                 "text": "x" * 10001,  # Exceeds 10000 limit
                 "target_language": "Spanish",
             },
+            headers=api_key_headers,
         )
         assert response.status_code == 422
