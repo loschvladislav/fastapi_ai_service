@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI, Request
@@ -17,12 +18,22 @@ setup_logging()
 
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle startup and shutdown events."""
+    await cache_service.connect()
+    yield
+    await cache_service.disconnect()
+
+
 app = FastAPI(
     title="AI Service API",
     description="FastAPI microservice with OpenAI GPT integration",
     version="0.1.0",
     docs_url="/docs" if settings.debug else None,
     redoc_url="/redoc" if settings.debug else None,
+    lifespan=lifespan,
 )
 
 # Rate limiting
@@ -35,16 +46,6 @@ app.include_router(usage.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(summarize.router, prefix="/api/v1")
 app.include_router(translate.router, prefix="/api/v1")
-
-
-@app.on_event("startup")
-async def startup():
-    await cache_service.connect()
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    await cache_service.disconnect()
 
 
 @app.get("/health")
