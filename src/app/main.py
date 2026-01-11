@@ -10,6 +10,7 @@ from app.api.v1 import api_keys, chat, summarize, translate, usage
 from app.config import settings
 from app.core.logging import setup_logging
 from app.core.rate_limit import limiter
+from app.services.cache_service import cache_service
 
 # Setup logging
 setup_logging()
@@ -36,9 +37,19 @@ app.include_router(summarize.router, prefix="/api/v1")
 app.include_router(translate.router, prefix="/api/v1")
 
 
+@app.on_event("startup")
+async def startup():
+    await cache_service.connect()
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    await cache_service.disconnect()
+
+
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    return {"status": "healthy", "cache": cache_service.is_connected}
 
 
 @app.exception_handler(Exception)

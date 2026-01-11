@@ -1,3 +1,4 @@
+import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -9,6 +10,7 @@ from app.core.auth import CurrentAPIKey
 from app.core.rate_limit import get_rate_limit, limiter
 from app.database import get_db
 from app.schemas.chat import ChatRequest, ChatResponse
+from app.services.cache_service import cache_service
 from app.services.openai_service import chat_completion, chat_completion_stream
 from app.services.usage_service import record_usage
 
@@ -39,8 +41,24 @@ async def create_chat_completion(
         },
     )
 
+    # Try to get cached response
+    cache_key_data = {
+        "messages": [m.model_dump() for m in chat_request.messages],
+        "model": chat_request.model,
+        "max_tokens": chat_request.max_tokens,
+        "temperature": chat_request.temperature,
+    }
+    cached = await cache_service.get("chat", cache_key_data)
+    if cached:
+        logger.info("Returning cached chat response")
+        cached_data = json.loads(cached)
+        return ChatResponse(**cached_data)
+
     try:
         response = await chat_completion(chat_request)
+
+        # Cache the response
+        await cache_service.set("chat", cache_key_data, json.dumps(response.model_dump()))
 
         # Record usage
         await record_usage(

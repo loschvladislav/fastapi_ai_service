@@ -1,3 +1,4 @@
+import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -8,6 +9,7 @@ from app.core.auth import CurrentAPIKey
 from app.core.rate_limit import get_rate_limit, limiter
 from app.database import get_db
 from app.schemas.summarize import SummarizeRequest, SummarizeResponse
+from app.services.cache_service import cache_service
 from app.services.openai_service import summarize_text
 from app.services.usage_service import record_usage
 
@@ -43,8 +45,23 @@ async def create_summary(
         },
     )
 
+    # Try to get cached response
+    cache_key_data = {
+        "text": summarize_request.text,
+        "max_length": summarize_request.max_length,
+        "style": summarize_request.style,
+    }
+    cached = await cache_service.get("summarize", cache_key_data)
+    if cached:
+        logger.info("Returning cached summarize response")
+        cached_data = json.loads(cached)
+        return SummarizeResponse(**cached_data)
+
     try:
         response = await summarize_text(summarize_request)
+
+        # Cache the response
+        await cache_service.set("summarize", cache_key_data, json.dumps(response.model_dump()))
 
         # Record usage
         await record_usage(

@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     # Rate Limiting
     rate_limit_per_minute: int = 10
 
+    # Redis Cache
+    redis_url: str = "redis://localhost:6379"
+    cache_ttl_seconds: int = 3600  # 1 hour
+
     # App
     app_env: str = "development"
     debug: bool = False

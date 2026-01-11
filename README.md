@@ -8,6 +8,7 @@ FastAPI microservice with OpenAI GPT integration, API key management, usage trac
 - **Streaming Responses** - Real-time token streaming with Server-Sent Events (SSE)
 - **API Key Management** - Create, manage, and revoke API keys
 - **Usage Tracking** - Track API usage per key with detailed metrics
+- **Redis Caching** - Cache AI responses to reduce OpenAI API costs (1-hour TTL)
 - **PostgreSQL Database** - Persistent storage with async SQLAlchemy
 - **Rate Limiting** - Prevent abuse with configurable limits per API key
 - **Structured Logging** - JSON logs in production, readable in dev
@@ -30,8 +31,8 @@ pip install -e ".[dev]"
 cp .env.example .env
 # Edit .env and add your OPENAI_API_KEY
 
-# Start PostgreSQL
-docker compose up -d db
+# Start PostgreSQL and Redis
+docker compose up -d db redis
 
 # Run migrations
 alembic upgrade head
@@ -213,6 +214,8 @@ alembic downgrade -1
 | `DB_NAME` | ai_service_db | Database name |
 | `DB_HOST` | localhost | Database host |
 | `DB_PORT` | 5436 | Database port |
+| `REDIS_URL` | redis://localhost:6379 | Redis connection URL |
+| `CACHE_TTL_SECONDS` | 3600 | Cache TTL in seconds (1 hour) |
 | `RATE_LIMIT_PER_MINUTE` | 10 | Default rate limit |
 | `APP_ENV` | development | Environment |
 | `DEBUG` | false | Enable debug mode and docs |
@@ -254,6 +257,7 @@ pytest -v
 │   ├── services/
 │   │   ├── api_key_service.py   # API key service
 │   │   ├── usage_service.py     # Usage service
+│   │   ├── cache_service.py     # Redis cache service
 │   │   └── openai_service.py    # OpenAI client
 │   ├── config.py             # Settings
 │   ├── database.py           # Database connection
