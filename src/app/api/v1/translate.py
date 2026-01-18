@@ -1,3 +1,4 @@
+import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -8,6 +9,7 @@ from app.core.auth import CurrentAPIKey
 from app.core.rate_limit import get_rate_limit, limiter
 from app.database import get_db
 from app.schemas.translate import TranslateRequest, TranslateResponse
+from app.services.cache_service import cache_service
 from app.services.openai_service import translate_text
 from app.services.usage_service import record_usage
 
@@ -41,8 +43,23 @@ async def create_translation(
         },
     )
 
+    # Try to get cached response
+    cache_key_data = {
+        "text": translate_request.text,
+        "source_language": translate_request.source_language,
+        "target_language": translate_request.target_language,
+    }
+    cached = await cache_service.get("translate", cache_key_data)
+    if cached:
+        logger.info("Returning cached translate response")
+        cached_data = json.loads(cached)
+        return TranslateResponse(**cached_data)
+
     try:
         response = await translate_text(translate_request)
+
+        # Cache the response
+        await cache_service.set("translate", cache_key_data, json.dumps(response.model_dump()))
 
         # Record usage
         await record_usage(
