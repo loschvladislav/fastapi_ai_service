@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI, Request
@@ -10,11 +11,21 @@ from app.api.v1 import api_keys, chat, summarize, translate, usage
 from app.config import settings
 from app.core.logging import setup_logging
 from app.core.rate_limit import limiter
+from app.services.cache_service import cache_service
 
 # Setup logging
 setup_logging()
 
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle startup and shutdown events."""
+    await cache_service.connect()
+    yield
+    await cache_service.disconnect()
+
 
 app = FastAPI(
     title="AI Service API",
@@ -22,6 +33,7 @@ app = FastAPI(
     version="0.1.0",
     docs_url="/docs" if settings.debug else None,
     redoc_url="/redoc" if settings.debug else None,
+    lifespan=lifespan,
 )
 
 # Rate limiting
@@ -38,7 +50,7 @@ app.include_router(translate.router, prefix="/api/v1")
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    return {"status": "healthy", "cache": cache_service.is_connected}
 
 
 @app.exception_handler(Exception)
