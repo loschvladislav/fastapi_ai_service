@@ -10,7 +10,7 @@ from app.core.rate_limit import get_rate_limit, limiter
 from app.database import get_db
 from app.schemas.translate import TranslateRequest, TranslateResponse
 from app.services.cache_service import cache_service
-from app.services.openai_service import translate_text
+from app.services.ai_provider import ai_provider
 from app.services.usage_service import record_usage
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ async def create_translation(
         return TranslateResponse(**cached_data)
 
     try:
-        response = await translate_text(translate_request)
+        response = await ai_provider.translate(translate_request)
 
         # Cache the response
         await cache_service.set("translate", cache_key_data, json.dumps(response.model_dump()))

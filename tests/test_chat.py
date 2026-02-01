@@ -4,6 +4,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.schemas.chat import ChatMessage, ChatResponse
+from app.services.ai_provider import ai_provider
 
 
 class TestHealthCheck:
@@ -47,7 +48,7 @@ class TestChatEndpoint:
             usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
         )
 
-        with patch("app.api.v1.chat.chat_completion", new_callable=AsyncMock) as mock:
+        with patch.object(ai_provider, "chat", new_callable=AsyncMock) as mock:
             mock.return_value = mock_response
 
             response = await client.post(
@@ -86,7 +87,7 @@ class TestChatEndpoint:
 
     async def test_chat_temperature_validation(self, client: AsyncClient, api_key_headers: dict):
         """Test temperature must be between 0 and 2."""
-        with patch("app.api.v1.chat.chat_completion", new_callable=AsyncMock):
+        with patch.object(ai_provider, "chat", new_callable=AsyncMock):
             response = await client.post(
                 "/api/v1/chat",
                 json={
@@ -117,7 +118,7 @@ class TestChatStreamEndpoint:
             yield 'data: {"token": " World"}\n\n'
             yield 'data: {"done": true, "full_text": "Hello World"}\n\n'
 
-        with patch("app.api.v1.chat.chat_completion_stream", return_value=mock_stream()):
+        with patch.object(ai_provider, "chat_stream", return_value=mock_stream()):
             response = await client.post(
                 "/api/v1/chat/stream",
                 json={
