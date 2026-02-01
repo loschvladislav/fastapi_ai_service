@@ -12,7 +12,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # OpenAI
+    # AI Provider
+    ai_provider: str = "openai"
     openai_api_key: str
 
     # Database

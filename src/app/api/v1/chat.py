@@ -11,7 +11,7 @@ from app.core.rate_limit import get_rate_limit, limiter
 from app.database import get_db
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.cache_service import cache_service
-from app.services.openai_service import chat_completion, chat_completion_stream
+from app.services.ai_provider import ai_provider
 from app.services.usage_service import record_usage
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ async def create_chat_completion(
         return ChatResponse(**cached_data)
 
     try:
-        response = await chat_completion(chat_request)
+        response = await ai_provider.chat(chat_request)
 
         # Cache the response
         await cache_service.set("chat", cache_key_data, json.dumps(response.model_dump()))
@@ -131,7 +131,7 @@ async def create_chat_completion_stream(
     )
 
     return StreamingResponse(
-        chat_completion_stream(chat_request),
+        ai_provider.chat_stream(chat_request),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

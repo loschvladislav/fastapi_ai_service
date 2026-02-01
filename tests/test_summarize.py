@@ -4,6 +4,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.schemas.summarize import SummarizeResponse
+from app.services.ai_provider import ai_provider
 
 
 class TestSummarizeEndpoint:
@@ -28,7 +29,7 @@ class TestSummarizeEndpoint:
             usage={"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120},
         )
 
-        with patch("app.api.v1.summarize.summarize_text", new_callable=AsyncMock) as mock:
+        with patch.object(ai_provider, "summarize", new_callable=AsyncMock) as mock:
             mock.return_value = mock_response
 
             response = await client.post(
@@ -56,7 +57,7 @@ class TestSummarizeEndpoint:
             usage={"prompt_tokens": 100, "completion_tokens": 15, "total_tokens": 115},
         )
 
-        with patch("app.api.v1.summarize.summarize_text", new_callable=AsyncMock) as mock:
+        with patch.object(ai_provider, "summarize", new_callable=AsyncMock) as mock:
             mock.return_value = mock_response
 
             response = await client.post(
