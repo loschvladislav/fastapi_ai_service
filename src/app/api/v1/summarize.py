@@ -10,7 +10,7 @@ from app.core.rate_limit import get_rate_limit, limiter
 from app.database import get_db
 from app.schemas.summarize import SummarizeRequest, SummarizeResponse
 from app.services.cache_service import cache_service
-from app.services.openai_service import summarize_text
+from app.services.ai_provider import ai_provider
 from app.services.usage_service import record_usage
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ async def create_summary(
         return SummarizeResponse(**cached_data)
 
     try:
-        response = await summarize_text(summarize_request)
+        response = await ai_provider.summarize(summarize_request)
 
         # Cache the response
         await cache_service.set("summarize", cache_key_data, json.dumps(response.model_dump()))

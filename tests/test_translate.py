@@ -4,6 +4,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.schemas.translate import TranslateResponse
+from app.services.ai_provider import ai_provider
 
 
 class TestTranslateEndpoint:
@@ -29,7 +30,7 @@ class TestTranslateEndpoint:
             usage={"prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30},
         )
 
-        with patch("app.api.v1.translate.translate_text", new_callable=AsyncMock) as mock:
+        with patch.object(ai_provider, "translate", new_callable=AsyncMock) as mock:
             mock.return_value = mock_response
 
             response = await client.post(
@@ -57,7 +58,7 @@ class TestTranslateEndpoint:
             usage={"prompt_tokens": 20, "completion_tokens": 5, "total_tokens": 25},
         )
 
-        with patch("app.api.v1.translate.translate_text", new_callable=AsyncMock) as mock:
+        with patch.object(ai_provider, "translate", new_callable=AsyncMock) as mock:
             mock.return_value = mock_response
 
             response = await client.post(
