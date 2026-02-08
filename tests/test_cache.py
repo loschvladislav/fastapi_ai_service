@@ -5,8 +5,22 @@ import pytest
 from app.services.cache_service import CacheService
 
 
+@pytest.fixture(autouse=True)
+def reset_cache_singleton():
+    """Reset CacheService singleton before each test."""
+    CacheService._reset_instance()
+    yield
+    CacheService._reset_instance()
+
+
 class TestCacheService:
     """Test cache service functionality."""
+
+    def test_singleton_returns_same_instance(self):
+        """Test that CacheService always returns the same instance."""
+        service1 = CacheService()
+        service2 = CacheService()
+        assert service1 is service2
 
     def test_generate_key_consistent(self):
         """Test that same data generates same key."""

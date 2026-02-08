@@ -13,10 +13,27 @@ logger = logging.getLogger(__name__)
 
 
 class CacheService:
-    """Service for caching AI responses in Redis."""
+    """Service for caching AI responses in Redis. Uses Singleton pattern."""
+
+    _instance: "CacheService | None" = None
+    _initialized: bool = False
+
+    def __new__(cls) -> "CacheService":
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(self):
+        if self._initialized:
+            return
         self._redis: redis.Redis | None = None
+        self._initialized = True
+
+    @classmethod
+    def _reset_instance(cls) -> None:
+        """Reset singleton instance. Used only in tests."""
+        cls._instance = None
+        cls._initialized = False
 
     async def connect(self) -> None:
         """Connect to Redis."""
