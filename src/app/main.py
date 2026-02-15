@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.api.v1 import api_keys, chat, summarize, translate, usage
+from app.api.v1 import api_keys, chat, diagnostics, summarize, translate, usage
 from app.config import settings
 from app.core.logging import setup_logging
 from app.core.rate_limit import limiter
@@ -46,6 +46,7 @@ app.include_router(usage.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(summarize.router, prefix="/api/v1")
 app.include_router(translate.router, prefix="/api/v1")
+app.include_router(diagnostics.router, prefix="/api/v1")
 
 
 @app.get("/health")
