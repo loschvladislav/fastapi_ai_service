@@ -14,7 +14,8 @@ class Settings(BaseSettings):
 
     # AI Provider
     ai_provider: str = "openai"
-    openai_api_key: str
+    openai_api_key: str = ""
+    anthropic_api_key: str = ""
 
     # Database
     db_user: str = "ai_service"

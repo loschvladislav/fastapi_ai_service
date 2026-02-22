@@ -39,6 +39,10 @@ def get_ai_provider() -> AIProvider:
         from app.services.openai_provider import OpenAIProvider
 
         return OpenAIProvider()
+    elif settings.ai_provider == "anthropic":
+        from app.services.anthropic_provider import AnthropicProvider
+
+        return AnthropicProvider()
     else:
         raise ValueError(f"Unknown AI provider: {settings.ai_provider}")
 
